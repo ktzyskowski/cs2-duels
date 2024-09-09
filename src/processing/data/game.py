@@ -1,23 +1,30 @@
+import math
 from collections import deque
 from enum import Enum
-from math import sqrt
 
-from processing.data.util import sliding_window
-
-
-def generify_side(side: str):
-    if side == "T":
-        return Side.ATTACKER
-    else:
-        return Side.DEFENDER
+from processing.data.util import sliding_window, Vector3, degrees_to_radians
 
 
 class Side(Enum):
+    """Represents the side (team) of the player.
+
+    Can either be ``Side.ATTACKER`` or ``Side.DEFENDER``. Note that sides swap halfway through the game.
+    """
+
     ATTACKER = "attacker"
     DEFENDER = "defender"
 
+    @classmethod
+    def from_str(cls, side: str):
+        if side == "T":
+            return cls.ATTACKER
+        else:
+            return cls.DEFENDER
+
 
 class Game:
+    """Represents a single game (map) played."""
+
     def __init__(self, raw):
         self.map = raw["mapName"]
         self.parse_rate = raw["parserParameters"]["parseRate"]
@@ -27,11 +34,18 @@ class Game:
 
     def iterate_kills_with_windows(self, window_size=4, clean=True):
         for r in self.rounds:
-            yield from r.iterate_kills_with_windows(self.parse_rate, window_size=window_size, clean=clean)
+            yield from r.iterate_kills_with_windows(
+                self.parse_rate, window_size=window_size, clean=clean
+            )
 
     def _init_stat_counts(self):
-        return {player_id: [0] * len(self.rounds) for player_id in self.rounds[0].attacker_ids} | \
-            {player_id: [0] * len(self.rounds) for player_id in self.rounds[0].defender_ids}
+        return {
+            player_id: [0] * len(self.rounds)
+            for player_id in self.rounds[0].attacker_ids
+        } | {
+            player_id: [0] * len(self.rounds)
+            for player_id in self.rounds[0].defender_ids
+        }
 
     def kills_by_round(self):
         if not self.kills:
@@ -53,13 +67,28 @@ class Game:
 
 
 class Round:
+    """Represents a single round in a game."""
+
     def __init__(self, raw):
         self.kills = [Kill(kill_raw, raw["roundNum"]) for kill_raw in raw["kills"]]
         self.frames = list(map(Frame, raw["frames"]))
-        self.attacker_ids = list(map(lambda player_raw: player_raw["steamID"], raw["tSide"]["players"]))
-        self.defender_ids = list(map(lambda player_raw: player_raw["steamID"], raw["ctSide"]["players"]))
+        self.attacker_ids = list(
+            map(lambda player_raw: player_raw["steamID"], raw["tSide"]["players"])
+        )
+        self.defender_ids = list(
+            map(lambda player_raw: player_raw["steamID"], raw["ctSide"]["players"])
+        )
 
-    def iterate_kills_with_windows(self, parse_rate: int, window_size: int, clean: bool):
+    def iterate_kills_with_windows(
+        self, parse_rate: int, window_size: int, clean: bool
+    ):
+        """
+
+        :param parse_rate:
+        :param window_size:
+        :param clean:
+        :return:
+        """
         # if no kills occurred in the round for whatever reason, return an empty iterable
         if not self.kills:
             return []
@@ -87,14 +116,16 @@ class Round:
 
 
 class Kill:
+    """Represents a processed kill event."""
+
     def __init__(self, raw, game_round: int):
         self.game_round = game_round - 1  # rounds start at 1, change to start at 0
         self.tick = raw["tick"]
 
         self.killer_id = raw["attackerSteamID"]
-        self.killer_side = generify_side(raw["attackerSide"])
+        self.killer_side = Side.from_str(raw["attackerSide"])
         self.victim_id = raw["victimSteamID"]
-        self.victim_side = generify_side(raw["victimSide"])
+        self.victim_side = Side.from_str(raw["victimSide"])
 
         self.assister_sid = raw["assisterSteamID"]
         self.is_suicide = raw["isSuicide"]
@@ -102,6 +133,7 @@ class Kill:
         self.is_trade = raw["isTrade"]
 
     def attacker_id(self):
+        """Get the ID of the attacker in this kill."""
         if self.victim_side == Side.ATTACKER and self.killer_side == Side.ATTACKER:
             raise RuntimeError("Both parties are attackers (team kill?)")
         elif self.victim_side == Side.ATTACKER:
@@ -112,6 +144,7 @@ class Kill:
             raise RuntimeError("Neither party are attackers (team kill?)")
 
     def defender_id(self):
+        """Get the ID of the defender in this kill."""
         if self.victim_side == Side.DEFENDER and self.killer_side == Side.DEFENDER:
             raise RuntimeError("Both parties are defenders (team kill?)")
         elif self.victim_side == Side.DEFENDER:
@@ -123,43 +156,51 @@ class Kill:
 
     def is_clean(self):
         """Check if this kill is "clean", i.e. not an accidental teamkill, suicide, or assisted."""
-        return not self.is_suicide \
-            and not self.is_teamkill \
-            and not self.is_trade \
+        return (
+            not self.is_suicide
+            and not self.is_teamkill
+            and not self.is_trade
             and self.assister_sid is None
+        )
 
 
 class Frame:
+    """Represents a single frame in a round."""
+
     def __init__(self, raw):
         self.tick = raw["tick"]
         self.attackers = Team(raw["t"])
         self.defenders = Team(raw["ct"])
 
-    def get_player(self, player_id: int, player_side: Side):
-        if player_side == Side.ATTACKER:
-            team = self.attackers
-        else:
-            team = self.defenders
-        for player in team.players:
+    def get_player(self, player_id: int):
+        """Get frame information for a specific player.
+
+        :param player_id: the player id.
+        :return: the player frame.
+        """
+        for player in self.attackers.players:
+            if player.id == player_id:
+                return player
+        for player in self.defenders.players:
             if player.id == player_id:
                 return player
         raise ValueError("Player not found")
 
 
 class Team:
+    """Represents frame information for a team."""
+
     def __init__(self, raw):
         self.players = list(map(Player, raw["players"]))
 
 
 class Player:
+    """Represents frame information for a player."""
+
     def __init__(self, raw):
         self.id = raw["steamID"]
-        self.x = raw["x"]
-        self.y = raw["y"]
-        self.z = raw["z"]
-        self.velocity_x = raw["velocityX"]
-        self.velocity_y = raw["velocityY"]
-        self.velocity_z = raw["velocityZ"]
+        self.position = Vector3(raw["x"], raw["y"], raw["z"])
+        self.velocity = Vector3(raw["velocityX"], raw["velocityY"], raw["velocityZ"])
         self.view_x = raw["viewX"]
         self.view_y = raw["viewY"]
         self.hp = raw["hp"]
@@ -175,9 +216,39 @@ class Player:
         self.cash = raw["cash"]
         self.has_helmet = raw["hasHelmet"]
 
-    def distance(self, other_player):
-        return sqrt(
-            (self.x - other_player.x) ** 2
-            + (self.y - other_player.y) ** 2
-            + (self.z - other_player.z) ** 2
+    def crosshair_placement_score(self, target_player):
+        """Compute the crosshair placement score for this player aiming at a target player.
+
+        The score is defined as the cosine similarity between their placement and perfect placement.
+
+        A score of +1 indicates that their aim is directly in the center of the target player.
+        A score of -1 indicates that their aim is directly opposite the center of the target player.
+
+        :param target_player: the target player.
+        :return: the crosshair placement score.
+        """
+        # TODO: replace 0 with proper z (height) calculations
+        # create straight-line vector from this player to the target player
+        # (this represents PERFECT crosshair placement, since they're aiming directly at the target)
+        perfect_placement = Vector3(
+            target_player.position.x - self.position.x,
+            target_player.position.y - self.position.y,
+            0,
         )
+
+        # now, calculate actual crosshair placement using view_x and view_y
+        view_x_radians = degrees_to_radians(self.view_x)
+        actual_placement = Vector3(
+            math.cos(view_x_radians), math.sin(view_x_radians), 0
+        )
+
+        # score is the cosine similarity
+        return perfect_placement.cosine_similarity(actual_placement)
+
+    def distance(self, other_player):
+        """Compute the straight-line distance between this player and another player.
+
+        :param other_player: the other player.
+        :return: the distance.
+        """
+        return self.position.distance(other_player.position)
