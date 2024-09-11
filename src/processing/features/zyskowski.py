@@ -89,7 +89,9 @@ class ZyskowskiFeatureExtractor(FeatureExtractor):
             ),
             **extract_crosshair_placement_score(kill, window),
         }
-        label = kill.victim_side
+
+        # label is the winner of the duel, either attacker or defender
+        label = kill.killer_side
         return feature, label
 
 
@@ -99,8 +101,8 @@ def extract_crosshair_placement_score(kill: Kill, window: list[Frame]):
         "defender_crosshair_placement_score": [],
     }
     for frame in window:
-        attacker = frame.get_player(kill.attacker_id())
-        defender = frame.get_player(kill.defender_id())
+        attacker = frame.get_player(kill.attacker_id)
+        defender = frame.get_player(kill.defender_id)
         feature["attacker_crosshair_placement_score"].append(
             crosshair_placement_score(attacker, defender)
         )

@@ -1,7 +1,8 @@
 import json
 
 from processing.data.game import Game
-from processing.features.zyskowski import extract_features
+from processing.features.zyskowski import ZyskowskiFeatureExtractor
+
 
 if __name__ == "__main__":
     path = "../../res/json/0a5040e7-f972-4e0d-b9bf-ee6dfbdf0342.json"
@@ -9,5 +10,5 @@ if __name__ == "__main__":
         data = json.load(f)
 
     test_game = Game(data)
-    output = extract_features(test_game)
+    output = ZyskowskiFeatureExtractor().extract(test_game)
     print("done!")

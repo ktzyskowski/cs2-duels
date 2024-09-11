@@ -92,7 +92,7 @@ class Round:
         # and generate sliding windows over frames in the round
         windows = sliding_window(self.frames, size=window_size)
         if clean:
-            uniterated_kills = deque(k for k in self.kills if k.is_clean())
+            uniterated_kills = deque(k for k in self.kills if k.is_clean)
         else:
             uniterated_kills = deque(self.kills)
 
@@ -115,34 +115,24 @@ class Kill:
         self.game_round = game_round - 1  # rounds start at 1, change to start at 0
         self.tick = raw["tick"]
         self.distance = raw["distance"]
-        self.killer_blinded = raw["killerBlinded"]
-        self.victim_blinded = raw["victimBlinded"]
-
-        self.killer_id = raw["attackerSteamID"]
-        self.victim_id = raw["victimSteamID"]
-        self.killer_side = Side.from_str(raw["attackerSide"])
-        self.victim_side = Side.from_str(raw["victimSide"])
 
         self.assister_id = raw["assisterSteamID"]
         self.is_suicide = raw["isSuicide"]
         self.is_teamkill = raw["isTeamkill"]
         self.is_trade = raw["isTrade"]
 
-    @property
-    def attacker_blinded(self):
-        return self.by_side(
-            Side.ATTACKER,
-            if_victim=lambda: self.victim_blinded,
-            if_killer=lambda: self.killer_blinded,
-        )
-
-    @property
-    def defender_blinded(self):
-        return self.by_side(
-            Side.DEFENDER,
-            if_victim=lambda: self.victim_blinded,
-            if_killer=lambda: self.killer_blinded,
-        )
+        if self.is_suicide:
+            self.killer_id, self.killer_side, self.victim_id, self.victim_side = (
+                None,
+                None,
+                None,
+                None,
+            )
+        else:
+            self.killer_id = raw["attackerSteamID"]
+            self.victim_id = raw["victimSteamID"]
+            self.killer_side = Side.from_str(raw["attackerSide"])
+            self.victim_side = Side.from_str(raw["victimSide"])
 
     @property
     def attacker_id(self):
