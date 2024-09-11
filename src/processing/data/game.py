@@ -1,8 +1,8 @@
 from collections import deque
 
-from processing.data.frame import Frame
-from processing.data.side import Side
-from processing.data.util import sliding_window
+from src.processing.data.frame import Frame
+from src.processing.data.side import Side
+from src.processing.data.util import sliding_window
 
 
 class Game:
@@ -15,7 +15,7 @@ class Game:
         self.kills = None
         self.deaths = None
 
-    def iterate_kills_with_windows(self, window_size=4, clean=True):
+    def iterate_kills(self, window_size: int, clean: bool):
         """Iterate over all the kills in this game, and include the window of frames leading up to each kill.
 
         :param window_size: the size of the window (number of frames prior to the kill).
@@ -23,44 +23,44 @@ class Game:
         :return: a generator over the kills and their respective windows.
         """
         for r in self.rounds:
-            yield from r.iterate_kills_with_windows(
+            yield from r.iterate_kills(
                 self.parse_rate, window_size=window_size, clean=clean
             )
 
-    def kills_by_round(self):
-        """Get the number of kills for each player in the game, separated by round.
-
-        :return: a dictionary of the kills by round.
-        """
-        if not self.kills:
-            self.kills = self._init_stat_counts()
-            for r in self.rounds:
-                for k in r.kills:
-                    if k.is_suicide or k.is_teamkill:
-                        continue
-                    self.kills[k.killer_id][k.game_round] += 1
-        return self.kills
-
-    def deaths_by_round(self):
-        """Get the number of deaths for each player in the game, separated by round.
-
-        :return: a dictionary of the deaths by round.
-        """
-        if not self.deaths:
-            self.deaths = self._init_stat_counts()
-            for r in self.rounds:
-                for k in r.kills:
-                    self.deaths[k.victim_id][k.game_round] += 1
-        return self.deaths
-
-    def _init_stat_counts(self):
-        return {
-            player_id: [0] * len(self.rounds)
-            for player_id in self.rounds[0].attacker_ids
-        } | {
-            player_id: [0] * len(self.rounds)
-            for player_id in self.rounds[0].defender_ids
-        }
+    # def kills_by_round(self):
+    #     """Get the number of kills for each player in the game, separated by round.
+    #
+    #     :return: a dictionary of the kills by round.
+    #     """
+    #     if not self.kills:
+    #         self.kills = self._init_stat_counts()
+    #         for r in self.rounds:
+    #             for k in r.kills:
+    #                 if k.is_suicide or k.is_teamkill:
+    #                     continue
+    #                 self.kills[k.killer_id][k.game_round] += 1
+    #     return self.kills
+    #
+    # def deaths_by_round(self):
+    #     """Get the number of deaths for each player in the game, separated by round.
+    #
+    #     :return: a dictionary of the deaths by round.
+    #     """
+    #     if not self.deaths:
+    #         self.deaths = self._init_stat_counts()
+    #         for r in self.rounds:
+    #             for k in r.kills:
+    #                 self.deaths[k.victim_id][k.game_round] += 1
+    #     return self.deaths
+    #
+    # def _init_stat_counts(self):
+    #     return {
+    #         player_id: [0] * len(self.rounds)
+    #         for player_id in self.rounds[0].attacker_ids
+    #     } | {
+    #         player_id: [0] * len(self.rounds)
+    #         for player_id in self.rounds[0].defender_ids
+    #     }
 
 
 class Round:
@@ -76,9 +76,7 @@ class Round:
             map(lambda player_raw: player_raw["steamID"], raw["ctSide"]["players"])
         )
 
-    def iterate_kills_with_windows(
-        self, parse_rate: int, window_size: int, clean: bool
-    ):
+    def iterate_kills(self, parse_rate: int, window_size: int, clean: bool):
         """Iterate over all the kills in this round, and include the window of frames leading up to each kill.
 
         :param parse_rate: the parse rate of the underlying data. This helps determine which frames precede a kill.
@@ -116,6 +114,9 @@ class Kill:
     def __init__(self, raw, game_round: int):
         self.game_round = game_round - 1  # rounds start at 1, change to start at 0
         self.tick = raw["tick"]
+        self.distance = raw["distance"]
+        self.killer_blinded = raw["killerBlinded"]
+        self.victim_blinded = raw["victimBlinded"]
 
         self.killer_id = raw["attackerSteamID"]
         self.victim_id = raw["victimSteamID"]
@@ -127,29 +128,41 @@ class Kill:
         self.is_teamkill = raw["isTeamkill"]
         self.is_trade = raw["isTrade"]
 
+    @property
+    def attacker_blinded(self):
+        return self.by_side(
+            Side.ATTACKER,
+            if_victim=lambda: self.victim_blinded,
+            if_killer=lambda: self.killer_blinded,
+        )
+
+    @property
+    def defender_blinded(self):
+        return self.by_side(
+            Side.DEFENDER,
+            if_victim=lambda: self.victim_blinded,
+            if_killer=lambda: self.killer_blinded,
+        )
+
+    @property
     def attacker_id(self):
         """Get the ID of the attacker in this kill."""
-        return self._id(Side.ATTACKER)
+        return self.by_side(
+            Side.ATTACKER,
+            if_victim=lambda: self.victim_id,
+            if_killer=lambda: self.killer_id,
+        )
 
+    @property
     def defender_id(self):
         """Get the ID of the defender in this kill."""
-        return self._id(Side.DEFENDER)
+        return self.by_side(
+            Side.DEFENDER,
+            if_victim=lambda: self.victim_id,
+            if_killer=lambda: self.killer_id,
+        )
 
-    def _id(self, side: Side):
-        """Get the ID of the player with the given side in this kill.
-
-        :param side: the side of the player in the kill.
-        :return: the ID of the player.
-        """
-        if self.victim_side is side and self.killer_side is side:
-            raise RuntimeError(f"Both parties are {side.value}s (team kill?)")
-        elif self.victim_side is side:
-            return self.victim_id
-        elif self.killer_side is side:
-            return self.killer_id
-        else:
-            raise RuntimeError(f"Neither party are {side.value}s (team kill?)")
-
+    @property
     def is_clean(self):
         """Check if this kill is "clean", i.e. not an accidental teamkill, suicide, or assisted."""
         return (
@@ -158,3 +171,13 @@ class Kill:
             and not self.is_trade
             and self.assister_id is None
         )
+
+    def by_side(self, side, if_victim, if_killer):
+        if self.victim_side is side and self.killer_side is side:
+            raise RuntimeError(f"Both parties are {side.value}s (team kill?)")
+        elif self.victim_side is side:
+            return if_victim()
+        elif self.killer_side is side:
+            return if_killer()
+        else:
+            raise RuntimeError(f"Neither party are {side.value}s (team kill?)")

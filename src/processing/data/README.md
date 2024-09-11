@@ -1,8 +1,14 @@
 # src.processing.data
 
-The main file in this package is `game.py`, which implements a wrapper object over the ESTA JSON data. I've chosen to
-design wrapper classes rather than work directly with the JSON data because it allowed me to attach processing logic to
-the pieces of data they were relevant to (such as the `Player.crosshair_placement_score` method). You can follow from
-`game.py` to the remaining relevant files in the package.
+The main file in this package is `game.py` which holds the wrapper classes over the ESTA data. These wrapper
+classes help serve to query relevant information for feature extraction.
 
-`util.py` holds generic utility functions and classes which I didn't feel should live anywhere else.
+- `game.Game` wraps over an individual game/map played, and holds a list of rounds as well as various metadata.
+- `game.Round` wraps over an individual round played during a game, and holds frame information for each player as well
+  as parsed kill events.
+- `game.Kill` wraps over the kill events in the ESTA data.
+
+`frame.py` holds wrapper classes over individual frame data for teams and their players, as well as additional
+querying logic.
+
+`util.py` holds utility functions and classes that could be abstracted away from the ESTA data pipeline.
