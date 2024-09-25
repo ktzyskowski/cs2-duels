@@ -21,3 +21,6 @@ class Side(Enum):
         elif side == "CT":
             return cls.DEFENDER
         raise ValueError(f"Unknown side: {side}")
+
+    def __str__(self):
+        return self.value

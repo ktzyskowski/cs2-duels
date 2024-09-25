@@ -1,14 +1,24 @@
 import json
+import os
 
 from processing.data.game import Game
+from processing.features.common import FeatureExtractor
 from processing.features.zyskowski import ZyskowskiFeatureExtractor
 
 
-if __name__ == "__main__":
-    path = "../../res/json/0a5040e7-f972-4e0d-b9bf-ee6dfbdf0342.json"
-    with open(path, "r") as f:
-        data = json.load(f)
+def process(path: str, extractor: FeatureExtractor):
+    features, labels = [], []
 
-    test_game = Game(data)
-    output = ZyskowskiFeatureExtractor().extract(test_game)
-    print("done!")
+    filenames = os.listdir(path)
+    for filename in filenames:
+        with open(os.path.join(path, filename), "r") as f:
+            data = json.load(f)
+            game = Game(data)
+            new_features, new_labels = extractor.extract(game)
+            features.extend(new_features)
+            labels.extend(new_labels)
+    return features, labels
+
+
+if __name__ == "__main__":
+    process(path="../../res/json", extractor=ZyskowskiFeatureExtractor())
