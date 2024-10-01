@@ -45,11 +45,6 @@ class DuelDataset(Dataset):
             self.x_snapshot.values.astype(int), dtype=torch.long
         )
 
-        # self.x_snapshot = torch.tensor(
-        #     [self.__init_snapshot_sample(sample) for sample in snapshot_features],
-        #     dtype=torch.float,
-        # )
-
     @staticmethod
     def filter_temporal(sample):
         return {key: value for key, value in sample.items() if isinstance(value, list)}
@@ -73,6 +68,3 @@ if __name__ == "__main__":
     print(dataset.x_temporal.shape)
     print(dataset.x_snapshot.shape)
     print(dataset.y.shape)
-
-    print(dataset.x_snapshot)
-    print(dataset.x_snapshot.shape)
