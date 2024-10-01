@@ -63,7 +63,7 @@ class DuelDataset(Dataset):
 
 
 if __name__ == "__main__":
-    result = process(path="../../../res/json", extractor=ZyskowskiFeatureExtractor())
+    result = process(path="../../../res/train", extractor=ZyskowskiFeatureExtractor())
     dataset = DuelDataset(features=result[0], labels=result[1])
     print(dataset.x_temporal.shape)
     print(dataset.x_snapshot.shape)

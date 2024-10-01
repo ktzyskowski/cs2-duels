@@ -21,4 +21,4 @@ def process(path: str, extractor: FeatureExtractor):
 
 
 if __name__ == "__main__":
-    process(path="../../res/json", extractor=ZyskowskiFeatureExtractor())
+    process(path="../../res/train", extractor=ZyskowskiFeatureExtractor())
