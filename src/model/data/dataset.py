@@ -32,11 +32,18 @@ class DuelDataset(Dataset):
 
         snapshot_features = [self.filter_snapshot(sample) for sample in features]
         self.x_snapshot = pd.DataFrame(snapshot_features)
+
         # TODO: don't hardcode str one-hot encoding as just these two keys
         str_keys = ["attacker_active_weapon", "defender_active_weapon"]
+
+        # normalize data
+        self.x_snapshot[~str_keys]
+
         self.x_snapshot = pd.concat(
             [
-                pd.get_dummies(self.x_snapshot[str_keys]),
+                pd.get_dummies(
+                    self.x_snapshot[str_keys],
+                ),
                 self.x_snapshot.drop(str_keys, axis=1),
             ],
             axis=1,
@@ -59,7 +66,7 @@ class DuelDataset(Dataset):
         return len(self.y)
 
     def __getitem__(self, index):
-        return None, self.y[index]
+        return self.x_temporal[index], self.x_snapshot[index], self.y[index]
 
 
 if __name__ == "__main__":

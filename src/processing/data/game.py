@@ -11,7 +11,15 @@ class Game:
     def __init__(self, raw):
         self.map = raw["mapName"]
         self.parse_rate = raw["parserParameters"]["parseRate"]
-        self.rounds = list(map(Round, raw["gameRounds"]))
+        self.rounds = []  # list(map(Round, raw["gameRounds"]))
+        for raw_round in raw["gameRounds"]:
+            try:
+                game_round = Round(raw_round)
+                self.rounds.append(game_round)
+            except Exception as e:
+                print("error parsing round:", e)
+                pass
+
         self.kills = None
         self.deaths = None
 
@@ -26,41 +34,6 @@ class Game:
             yield from r.iterate_kills(
                 self.parse_rate, window_size=window_size, clean=clean
             )
-
-    # def kills_by_round(self):
-    #     """Get the number of kills for each player in the game, separated by round.
-    #
-    #     :return: a dictionary of the kills by round.
-    #     """
-    #     if not self.kills:
-    #         self.kills = self._init_stat_counts()
-    #         for r in self.rounds:
-    #             for k in r.kills:
-    #                 if k.is_suicide or k.is_teamkill:
-    #                     continue
-    #                 self.kills[k.killer_id][k.game_round] += 1
-    #     return self.kills
-    #
-    # def deaths_by_round(self):
-    #     """Get the number of deaths for each player in the game, separated by round.
-    #
-    #     :return: a dictionary of the deaths by round.
-    #     """
-    #     if not self.deaths:
-    #         self.deaths = self._init_stat_counts()
-    #         for r in self.rounds:
-    #             for k in r.kills:
-    #                 self.deaths[k.victim_id][k.game_round] += 1
-    #     return self.deaths
-    #
-    # def _init_stat_counts(self):
-    #     return {
-    #         player_id: [0] * len(self.rounds)
-    #         for player_id in self.rounds[0].attacker_ids
-    #     } | {
-    #         player_id: [0] * len(self.rounds)
-    #         for player_id in self.rounds[0].defender_ids
-    #     }
 
 
 class Round:
@@ -95,6 +68,9 @@ class Round:
             uniterated_kills = deque(k for k in self.kills if k.is_clean)
         else:
             uniterated_kills = deque(self.kills)
+
+        if not uniterated_kills:
+            return []
 
         # loop over windows and kills to align them
         uniterated_kill = uniterated_kills.popleft()
